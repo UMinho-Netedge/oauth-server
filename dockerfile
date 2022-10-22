@@ -1,7 +1,7 @@
 # Indicamos a imagem de base
 FROM python
 # Instalamos os módulos
-RUN pip install requests pyjwt cryptography flask
+RUN pip install requests pyjwt cryptography flask python2-secrets
 # Criamos a pasta de trabalho dentro da imagem
 WORKDIR /app
 #criamos a pasta template
