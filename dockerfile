@@ -13,5 +13,5 @@ COPY reg_clients.json .
 # Expomos a porta
 EXPOSE 5001
 # Colocamos o servidor a correr
-CMD [ "python", "auth_server2.py" ]
+CMD [ "python", "auth_server.py" ]
 
