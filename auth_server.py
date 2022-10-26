@@ -1,6 +1,5 @@
 #! python3
 
-import base64
 import json
 import time
 from urllib.parse import urlencode, urlparse
@@ -15,67 +14,80 @@ import secrets
 
 app = Flask(__name__)
 
-#registered_clients = {'client-id': 'serviços de ediçao de fotos'}
+## Neste ficheiro ficam guardados os dados do cliente que se encontra registado no servidor de autorização.
+## Desta maneira é preciso fazer sempre load ao iniciar.
 with open('reg_clients.json') as f:
     registered_clients = json.load(f)
 f.close()
 
-print("registered_clients: ", registered_clients)
+
+## Chave usada para cifrar o token de acesso dado ao cliente.
 SECRET_KEY = 'secret-key-of-the-portuguese-empire'
 
-#with open('private.pem', mode='rb') as privatefile:
-#    private_key = privatefile.read()
-    
-#with open('public .pem', mode='rb') as publicfile:
-#    public_key = publicfile.read()
 
-
+## Endpoint onde o cliente faz o pedido de autorização e recebe um token de acesso.
+'''
+Para testar este endpoint, pode-se enviar o seguinte pedido POST:
+no body incluir os seguintes campos:
+grant_type: client_credentials
+client_id: XXXXXXXX
+client_secret: XXXXXXXX
+'''
 @app.route('/token', methods = ['POST'])
 def token():
-    # 1. Check if the client is registered
+    # 1. Verifica-se se o cliente se encontra registado no servidor de autorização.
     client_id = request.form.get('client_id')
     if client_id not in registered_clients:
         return make_response('Client not registered', 401)
     
-    # 3. Check if the client secret is correct
+    # 3. Se o cliente se encontra registado, verifica-se se o client_secret é válido.
     client_secret = request.form.get('client_secret')
     if client_secret != registered_clients[client_id]:
         return make_response('Invalid client secret', 403)
     
-    # 4. Generate the access token
+    # 4. se tudo estiver OK, então é criado o token de acesso. O qual é cifrado com a chave secreta, inicialmente definida.
     access_token = jwt.encode({'client_id': client_id, 'exp': time.time() + 3600}, SECRET_KEY, algorithm = 'HS256')
 
+    # 5. O token de acesso é enviado ao cliente.
     return json.dumps({
         'access_token': access_token,
         'token_type': 'Bearer',
         'expires_in': 3600
     })
 
-# register new client in authorization server
+
+# Endpoint usado para registo de novo clientes. Aqui o cliente apenas precisa de fazer um pedido get.
+# A resposta será um client_id e um client_secret gerados aleatoriamente.
 @app.route('/register', methods = ['GET'])
 def register():
     client_id = secrets.token_urlsafe(16)
     client_secret = secrets.token_urlsafe(32)
 
+    # aqui são armazenados os dados do cliente registado no servidor de autorização.
     registered_clients[client_id] = client_secret
 
+    # aqui é guardado no ficheiro os dados do cliente registado.
     with open('reg_clients.json', 'w') as f:
         json.dump(registered_clients, f)
     f.close()
 
+    # finalmente é enviado ao cliente o client_id e o client_secret.
     return json.dumps({
         'client_id': client_id,
         'client_secret': client_secret,
         "message": "Client registered successfully"
     })
 
-# view registred clients
+# Este endpoint apenas serve para teste e despeza todos os clientes registados no servidor de autorização.
 @app.route('/clients', methods = ['GET'])
 def clients():
     return json.dumps(registered_clients)
 
   
-# endpoint to validate access tokens sent by the client to the resource server
+# Neste endpoint é feita a validação do token enviado pelo cliente.
+# Como está a usar usado uma chave simátrica apenas conhecida por este servidor, se for possivel decifar então comprova-se que o token é autentico.
+# seguidamente é feita a validação do tempo de expiração do token.
+# se tudo estiver OK, então é enviado uma mensagem a indicar que o token é valido.
 @app.route('/validate_token', methods = ['POST'])
 def validate():
     access_token = request.form.get('access_token')
@@ -88,15 +100,6 @@ def validate():
     except:
         return make_response('Invalid access token', 401)
     return make_response('Valid access token', 200)
-    
 
-def process_redirect_url(redirect_url, authorization_code):
-  # Prepare the redirect URL
-  url_parts = list(urlparse.urlparse(redirect_url))
-  queries = dict(urlparse.parse_qsl(url_parts[4]))
-  queries.update({ "authorization_code": authorization_code })
-  url_parts[4] = urlencode(queries)
-  url = urlparse.urlunparse(url_parts)
-  return url
 
 app.run(host='0.0.0.0', port = 5001, debug = True)

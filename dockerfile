@@ -5,11 +5,11 @@ RUN pip install requests pyjwt cryptography flask python2-secrets
 # Criamos a pasta de trabalho dentro da imagem
 WORKDIR /app
 #criamos a pasta template
-RUN mkdir templates
+#RUN mkdir templates
 # Copiamos o resto
-COPY auth_server2.py .
-#COPY private.pem .
-COPY ./templates/login.html /app/templates
+COPY auth_server.py .
+COPY reg_clients.json .
+#COPY ./templates/login.html /app/templates
 # Expomos a porta
 EXPOSE 5001
 # Colocamos o servidor a correr
