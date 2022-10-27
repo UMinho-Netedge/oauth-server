@@ -36,12 +36,15 @@ client_secret: XXXXXXXX
 @app.route('/token', methods = ['POST'])
 def token():
     # 1. Verifica-se se o cliente se encontra registado no servidor de autorização.
-    client_id = request.form.get('client_id')
+    #client_id = request.form.get('client_id')
+    client_id = request.get_json().get('client_id')
+    print("client_id: ", client_id)
     if client_id not in registered_clients:
         return make_response('Client not registered', 401)
     
     # 3. Se o cliente se encontra registado, verifica-se se o client_secret é válido.
-    client_secret = request.form.get('client_secret')
+    #client_secret = request.form.get('client_secret')
+    client_secret = request.get_json().get('client_secret')
     if client_secret != registered_clients[client_id]:
         return make_response('Invalid client secret', 403)
     
@@ -90,7 +93,9 @@ def clients():
 # se tudo estiver OK, então é enviado uma mensagem a indicar que o token é valido.
 @app.route('/validate_token', methods = ['POST'])
 def validate():
-    access_token = request.form.get('access_token')
+    #access_token = request.form.get('access_token')
+    access_token = request.args.get('access_token')
+    print("access_token: ", access_token)
     try:
         tok = jwt.decode(access_token, SECRET_KEY, algorithms = ['HS256'])
         if tok['exp'] < time.time():
