@@ -3,7 +3,6 @@
 import json
 import time
 from urllib.parse import urlencode, urlparse
-#from winsound import Beep
 import requests
 import urllib.parse as urlparse
 import jwt
@@ -28,7 +27,7 @@ SECRET_KEY = 'secret-key-of-the-portuguese-empire'
 ## Endpoint onde o cliente faz o pedido de autorização e recebe um token de acesso.
 '''
 Para testar este endpoint, pode-se enviar o seguinte pedido POST:
-no body incluir os seguintes campos:
+no body incluir os seguintes campos em JSON:
 grant_type: client_credentials
 client_id: XXXXXXXX
 client_secret: XXXXXXXX
@@ -80,6 +79,41 @@ def register():
         'client_secret': client_secret,
         "message": "Client registered successfully"
     })
+
+## Endpoint onde é feito o pedido para apagar o cliente da "base de dados".
+'''
+Para testar este endpoint, pode-se enviar o seguinte pedido POST:
+no body incluir os seguintes campos em JSON:
+client_id: XXXXXXXX
+client_secret: XXXXXXXX
+'''
+@app.route('/delete', methods = ['POST'])
+def delete():
+    # 1. Verifica-se se o cliente se encontra registado no servidor de autorização.
+    #client_id = request.form.get('client_id')
+    client_id = request.get_json().get('client_id')
+    print("client_id: ", client_id)
+    if client_id not in registered_clients:
+        return make_response('Client not registered', 401)
+    
+    # 3. Se o cliente se encontra registado, verifica-se se o client_secret é válido.
+    #client_secret = request.form.get('client_secret')
+    client_secret = request.get_json().get('client_secret')
+    if client_secret != registered_clients[client_id]:
+        return make_response('Invalid client secret', 403)
+    
+    #delete client from registered_clients
+    del registered_clients[client_id]
+
+    #delete client from reg_clients.json
+    with open('reg_clients.json', 'w') as f:
+        json.dump(registered_clients, f)
+    f.close()
+
+    return json.dumps({
+        "message": "Client deleted successfully"
+    })
+
 
 # Este endpoint apenas serve para teste e despeza todos os clientes registados no servidor de autorização.
 @app.route('/clients', methods = ['GET'])
