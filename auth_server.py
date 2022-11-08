@@ -3,22 +3,16 @@
 import json
 import time
 from urllib.parse import urlencode, urlparse
-import requests
+#import requests
 import urllib.parse as urlparse
 import jwt
 from cryptography.fernet import Fernet
 from flask import (Flask, make_response, render_template, redirect, request,url_for)
 import secrets
+from pymongo import MongoClient
 
 
 app = Flask(__name__)
-
-## Neste ficheiro ficam guardados os dados do cliente que se encontra registado no servidor de autorização.
-## Desta maneira é preciso fazer sempre load ao iniciar.
-with open('reg_clients.json') as f:
-    registered_clients = json.load(f)
-f.close()
-
 
 ## Chave usada para cifrar o token de acesso dado ao cliente.
 SECRET_KEY = 'secret-key-of-the-portuguese-empire'
@@ -34,21 +28,26 @@ client_secret: XXXXXXXX
 '''
 @app.route('/token', methods = ['POST'])
 def token():
-    # 1. Verifica-se se o cliente se encontra registado no servidor de autorização.
-    #client_id = request.form.get('client_id')
+    # verifica se o cliente se encontra na base de dados.
     client_id = request.get_json().get('client_id')
-    print("client_id: ", client_id)
-    if client_id not in registered_clients:
+    client = MongoClient('mongodb', 27017)
+    db = client['oauth']
+    clients = db['clients']
+    # se o cliente não se encontrar na base de dados, então é enviado um erro.
+    if clients.find_one({'client_id': client_id}) == None:
+        client.close()
         return make_response('Client not registered', 401)
-    
-    # 3. Se o cliente se encontra registado, verifica-se se o client_secret é válido.
-    #client_secret = request.form.get('client_secret')
-    client_secret = request.get_json().get('client_secret')
-    if client_secret != registered_clients[client_id]:
+    # se o cliente se encontrar na base de dados, então é verificado se o client_secret é válido.
+    elif clients.find_one({'client_id': client_id})['client_secret'] != request.get_json().get('client_secret'):
+        client.close()
         return make_response('Invalid client secret', 403)
     
     # 4. se tudo estiver OK, então é criado o token de acesso. O qual é cifrado com a chave secreta, inicialmente definida.
     access_token = jwt.encode({'client_id': client_id, 'exp': time.time() + 3600}, SECRET_KEY, algorithm = 'HS256')
+
+    # 5. O token de acesso é guardado na base de dados.
+    add_token(access_token, client_id, 'read', time.time() + 3600)
+    client.close()
 
     # 5. O token de acesso é enviado ao cliente.
     return json.dumps({
@@ -65,13 +64,8 @@ def register():
     client_id = secrets.token_urlsafe(16)
     client_secret = secrets.token_urlsafe(32)
 
-    # aqui são armazenados os dados do cliente registado no servidor de autorização.
-    registered_clients[client_id] = client_secret
-
-    # aqui é guardado no ficheiro os dados do cliente registado.
-    with open('reg_clients.json', 'w') as f:
-        json.dump(registered_clients, f)
-    f.close()
+    # a informação do cliente é guardada na base de dados.
+    add_client(client_id, client_secret)
 
     # finalmente é enviado ao cliente o client_id e o client_secret.
     return json.dumps({
@@ -90,25 +84,24 @@ client_secret: XXXXXXXX
 @app.route('/delete', methods = ['POST'])
 def delete():
     # 1. Verifica-se se o cliente se encontra registado no servidor de autorização.
-    #client_id = request.form.get('client_id')
+
+    # verifica se o cliente se encontra na base de dados.
     client_id = request.get_json().get('client_id')
-    print("client_id: ", client_id)
-    if client_id not in registered_clients:
+    client = MongoClient('mongodb', 27017)
+    db = client['oauth']
+    clients = db['clients']
+    # se o cliente não se encontrar na base de dados, então é enviado um erro.
+    if clients.find_one({'client_id': client_id}) == None:
+        client.close()
         return make_response('Client not registered', 401)
-    
-    # 3. Se o cliente se encontra registado, verifica-se se o client_secret é válido.
-    #client_secret = request.form.get('client_secret')
-    client_secret = request.get_json().get('client_secret')
-    if client_secret != registered_clients[client_id]:
+    # se o cliente se encontrar na base de dados, então é verificado se o client_secret é válido.
+    elif clients.find_one({'client_id': client_id})['client_secret'] != request.get_json().get('client_secret'):
+        client.close()
         return make_response('Invalid client secret', 403)
     
-    #delete client from registered_clients
-    del registered_clients[client_id]
-
-    #delete client from reg_clients.json
-    with open('reg_clients.json', 'w') as f:
-        json.dump(registered_clients, f)
-    f.close()
+    # 2. Se o cliente se encontra registado, então é apagado da base de dados.
+    delete_client(client_id)
+    client.close()
 
     return json.dumps({
         "message": "Client deleted successfully"
@@ -118,7 +111,12 @@ def delete():
 # Este endpoint apenas serve para teste e despeza todos os clientes registados no servidor de autorização.
 @app.route('/clients', methods = ['GET'])
 def clients():
-    return json.dumps(registered_clients)
+    resultado = get_clients()
+    print(resultado)
+    #clean result
+    for i in resultado:
+        i.pop('_id')
+    return json.dumps(resultado)
 
   
 # Neste endpoint é feita a validação do token enviado pelo cliente.
@@ -130,15 +128,88 @@ def validate():
     #access_token = request.form.get('access_token')
     access_token = request.args.get('access_token')
     print("access_token: ", access_token)
-    try:
-        tok = jwt.decode(access_token, SECRET_KEY, algorithms = ['HS256'])
-        if tok['exp'] < time.time():
-            return json.dumps({
-                'message': 'Token expired'
-            }), 401
-    except:
+    if validate_token(access_token):
+        return make_response('Valid access token', 200)
+    else:    
         return make_response('Invalid access token', 401)
-    return make_response('Valid access token', 200)
+
+################# chamadas a base de dados #####################
+
+# everytime the serser starts run this function
+@app.before_first_request
+def reset_mongo():
+    client = MongoClient('mongodb', 27017)
+    print("Connected to database successfully!")
+    # delete the database and collections if they exist
+    client.drop_database('oauth')
+    print("Database dropped successfully!")
+    # create the database and collections
+    db = client.oauth
+    db.create_collection('clients')
+    db.create_collection('tokens')
+    # close connection
+    client.close()
+
+# add client to database
+def add_client(client_id, client_secret):
+    client = MongoClient('mongodb', 27017)
+    db = client['oauth']
+    clients = db['clients']
+    clients.insert_one({'client_id': client_id, 'client_secret': client_secret})
+    client.close()
+
+# add token to database
+def add_token(access_token, client_id, scope, expires):
+    client = MongoClient('mongodb', 27017)
+    db = client['oauth']
+    tokens = db['tokens']
+    tokens.insert_one({'access_token': access_token, 'client_id': client_id, 'scope': scope, 'expires': expires})
+    client.close()
+
+# delete client from database
+def delete_client(client_id):
+    client = MongoClient('mongodb', 27017)
+    db = client['oauth']
+    clients = db['clients']
+    clients.delete_one({'client_id': client_id})
+    client.close()
+
+# delete token from database
+def delete_token(access_token):
+    client = MongoClient('mongodb', 27017)
+    db = client['oauth']
+    tokens = db['tokens']
+    tokens.delete_one({'access_token': access_token})
+    client.close()
+
+# validate token from database
+def validate_token(access_token):
+    client = MongoClient('mongodb', 27017)
+    db = client['oauth']
+    tokens = db['tokens']
+    token = tokens.find_one({'access_token': access_token})
+    if token is None:
+        client.close()
+        return False
+    else:
+        # check if token has expired
+        if token['expires'] < time.time():
+            client.close()
+            return False
+    client.close()
+    return True
+
+# get all clients from database
+def get_clients():
+    client = MongoClient('mongodb', 27017)
+    db = client['oauth']
+    clients = db['clients']
+    resultado = []
+    for client in clients.find():
+        print(client)
+        resultado.append(client)
+    return resultado
+
 
 
 app.run(host='0.0.0.0', port = 5001, debug = True)

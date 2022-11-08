@@ -1,0 +1,26 @@
+version: "3"
+services:
+  auth-server:
+    container_name: oauth2-service
+    restart: always
+    depends_on: 
+      - mongodb
+    links:
+      - mongodb
+    image: arom98/auth-server:5.0
+    ports:
+      - "5001:5001"
+  mongodb:
+    image: mongo
+    ports:
+      - 27017:27017
+    expose:
+      - 27017
+    container_name: mongo
+    restart: unless-stopped
+    volumes:
+      - ./data:/data/db
+    #volumes:
+    #  - mongodb:/data/db
+volumes:
+ mongodb:
