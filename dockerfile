@@ -8,7 +8,6 @@ WORKDIR /app
 #RUN mkdir templates
 # Copiamos o resto
 COPY auth_server.py .
-COPY reg_clients.json .
 #COPY ./templates/login.html /app/templates
 # Expomos a porta
 EXPOSE 5001

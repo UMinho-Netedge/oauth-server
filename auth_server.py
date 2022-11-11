@@ -1,6 +1,7 @@
 #! python3
 
 import json
+import os
 import time
 from urllib.parse import urlencode, urlparse
 #import requests
@@ -14,7 +15,15 @@ from pymongo import MongoClient
 
 app = Flask(__name__)
 
+mongodb_addr = os.environ.get("ME_CONFIG_MONGODB_SERVER")
+mongodb_port = int (os.environ.get("ME_CONFIG_MONGODB_PORT"))
+mongodb_username = os.environ.get("ME_CONFIG_MONGODB_ADMINUSERNAME")
+mongodb_password = os.environ.get("ME_CONFIG_MONGODB_ADMINPASSWORD")
+#mongodb_database = os.environ.get("ME_CONFIG_MONGODB_DATABASE")
+
 ## Chave usada para cifrar o token de acesso dado ao cliente.
+## nesta ultima versão não está a ser uadada, porque a verificação está a ser feita na base de dados.
+## no futuro porderá vir a ser usada novamente.
 SECRET_KEY = 'secret-key-of-the-portuguese-empire'
 
 
@@ -30,7 +39,8 @@ client_secret: XXXXXXXX
 def token():
     # verifica se o cliente se encontra na base de dados.
     client_id = request.get_json().get('client_id')
-    client = MongoClient('mongodb', 27017)
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    #client = MongoClient('mongodb', 27017)
     db = client['oauth']
     clients = db['clients']
     # se o cliente não se encontrar na base de dados, então é enviado um erro.
@@ -46,6 +56,7 @@ def token():
     access_token = jwt.encode({'client_id': client_id, 'exp': time.time() + 3600}, SECRET_KEY, algorithm = 'HS256')
 
     # 5. O token de acesso é guardado na base de dados.
+    # hash the token 
     add_token(access_token, client_id, 'read', time.time() + 3600)
     client.close()
 
@@ -87,7 +98,8 @@ def delete():
 
     # verifica se o cliente se encontra na base de dados.
     client_id = request.get_json().get('client_id')
-    client = MongoClient('mongodb', 27017)
+    #client = MongoClient('mongodb', 27017)
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['oauth']
     clients = db['clients']
     # se o cliente não se encontrar na base de dados, então é enviado um erro.
@@ -120,7 +132,7 @@ def clients():
 
   
 # Neste endpoint é feita a validação do token enviado pelo cliente.
-# Como está a usar usado uma chave simátrica apenas conhecida por este servidor, se for possivel decifar então comprova-se que o token é autentico.
+# para este efeito é verificado se o token se encontra na base de dados.
 # seguidamente é feita a validação do tempo de expiração do token.
 # se tudo estiver OK, então é enviado uma mensagem a indicar que o token é valido.
 @app.route('/validate_token', methods = ['POST'])
@@ -136,23 +148,27 @@ def validate():
 ################# chamadas a base de dados #####################
 
 # everytime the serser starts run this function
+# Se o servidor for reiniciado, então todos os tokens são apagados da base de dados.
 @app.before_first_request
 def reset_mongo():
-    client = MongoClient('mongodb', 27017)
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     print("Connected to database successfully!")
-    # delete the database and collections if they exist
-    client.drop_database('oauth')
-    print("Database dropped successfully!")
+    # delete token collection
+    db = client['oauth']
+    tokens = db['tokens']
+    tokens.delete_many({})
+    #client.drop_database('oauth')
+    #print("Database dropped successfully!")
     # create the database and collections
-    db = client.oauth
-    db.create_collection('clients')
-    db.create_collection('tokens')
+    #db = client.oauth
+    #db.create_collection('clients')
+    #db.create_collection('tokens')
     # close connection
     client.close()
 
 # add client to database
 def add_client(client_id, client_secret):
-    client = MongoClient('mongodb', 27017)
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['oauth']
     clients = db['clients']
     clients.insert_one({'client_id': client_id, 'client_secret': client_secret})
@@ -160,7 +176,7 @@ def add_client(client_id, client_secret):
 
 # add token to database
 def add_token(access_token, client_id, scope, expires):
-    client = MongoClient('mongodb', 27017)
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['oauth']
     tokens = db['tokens']
     tokens.insert_one({'access_token': access_token, 'client_id': client_id, 'scope': scope, 'expires': expires})
@@ -168,7 +184,7 @@ def add_token(access_token, client_id, scope, expires):
 
 # delete client from database
 def delete_client(client_id):
-    client = MongoClient('mongodb', 27017)
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['oauth']
     clients = db['clients']
     clients.delete_one({'client_id': client_id})
@@ -176,7 +192,7 @@ def delete_client(client_id):
 
 # delete token from database
 def delete_token(access_token):
-    client = MongoClient('mongodb', 27017)
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['oauth']
     tokens = db['tokens']
     tokens.delete_one({'access_token': access_token})
@@ -184,7 +200,7 @@ def delete_token(access_token):
 
 # validate token from database
 def validate_token(access_token):
-    client = MongoClient('mongodb', 27017)
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['oauth']
     tokens = db['tokens']
     token = tokens.find_one({'access_token': access_token})
@@ -194,6 +210,8 @@ def validate_token(access_token):
     else:
         # check if token has expired
         if token['expires'] < time.time():
+            #como já expirou, então é apagado da base de dados.
+            delete_token(access_token)
             client.close()
             return False
     client.close()
@@ -201,7 +219,7 @@ def validate_token(access_token):
 
 # get all clients from database
 def get_clients():
-    client = MongoClient('mongodb', 27017)
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['oauth']
     clients = db['clients']
     resultado = []
