@@ -19,6 +19,11 @@ mongodb_addr = os.environ.get("ME_CONFIG_MONGODB_SERVER")
 mongodb_port = int (os.environ.get("ME_CONFIG_MONGODB_PORT"))
 mongodb_username = os.environ.get("ME_CONFIG_MONGODB_ADMINUSERNAME")
 mongodb_password = os.environ.get("ME_CONFIG_MONGODB_ADMINPASSWORD")
+
+#mongodb_addr = "localhost"
+#mongodb_port = 27017
+#mongodb_username = ""
+#mongodb_password = ""
 #mongodb_database = os.environ.get("ME_CONFIG_MONGODB_DATABASE")
 
 ## Chave usada para cifrar o token de acesso dado ao cliente.
@@ -113,6 +118,9 @@ def delete():
     
     # 2. Se o cliente se encontra registado, então é apagado da base de dados.
     delete_client(client_id)
+
+    # 3. todos os tokens de acesso associados ao cliente são apagados da base de dados.
+    delete_tokens(client_id)
     client.close()
 
     return json.dumps({
@@ -138,12 +146,26 @@ def clients():
 @app.route('/validate_token', methods = ['POST'])
 def validate():
     #access_token = request.form.get('access_token')
+    ## tento tirar o token da query string
     access_token = request.args.get('access_token')
-    print("access_token: ", access_token)
+    if access_token == None:
+        ## se não conseguir, então tento tirar o token do header
+        print("debug[1]")
+        access_token = request.headers.get('authorization')
+        access_token = access_token.split(' ')[1]
+        #print(access_token)
+    ## se não conseguir de nenhuma das formas, então assumo que o cliente enviou um pedido inválido.
+    else:
+        if access_token == None:
+            print("debug[2]")
+            return make_response('No token provided correctly', 401)
+    
+    #get only token from string
+    print("access_token:", access_token)
     if validate_token(access_token):
         return make_response('Valid access token', 200)
     else:    
-        return make_response('Invalid access token', 401)
+        return make_response('Invalid access token', 402)
 
 ################# chamadas a base de dados #####################
 
@@ -207,10 +229,11 @@ def validate_token(access_token):
     if token is None:
         client.close()
         return False
+    
+    # check if token has expired
     else:
-        # check if token has expired
         if token['expires'] < time.time():
-            #como já expirou, então é apagado da base de dados.
+        #como já expirou, então é apagado da base de dados.
             delete_token(access_token)
             client.close()
             return False
@@ -227,6 +250,15 @@ def get_clients():
         print(client)
         resultado.append(client)
     return resultado
+
+# delete all tokens from a client from database
+def delete_tokens(client_id):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['oauth']
+    tokens = db['tokens']
+    tokens.delete_many({'client id': client_id})
+    client.close()
+
 
 
 
