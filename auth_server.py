@@ -11,7 +11,7 @@ from cryptography.fernet import Fernet
 from flask import (Flask, make_response, render_template, redirect, request,url_for)
 import secrets
 from pymongo import MongoClient
-
+import bcrypt
 
 app = Flask(__name__)
 
@@ -53,9 +53,10 @@ def token():
         client.close()
         return make_response('Client not registered', 401)
     # se o cliente se encontrar na base de dados, então é verificado se o client_secret é válido.
-    elif clients.find_one({'client_id': client_id})['client_secret'] != request.get_json().get('client_secret'):
-        client.close()
-        return make_response('Invalid client secret', 403)
+    elif not bcrypt.checkpw(request.get_json().get('client_secret').encode('utf-8') , clients.find_one({'client_id': client_id})['client_secret']):
+    #elif clients.find_one({'client_id': client_id})['client_secret'] != request.get_json().get('client_secret'):
+            client.close()
+            return make_response('Invalid client secret', 403)
     
     # 4. se tudo estiver OK, então é criado o token de acesso. O qual é cifrado com a chave secreta, inicialmente definida.
     access_token = jwt.encode({'client_id': client_id, 'exp': time.time() + 3600}, SECRET_KEY, algorithm = 'HS256')
@@ -112,7 +113,7 @@ def delete():
         client.close()
         return make_response('Client not registered', 401)
     # se o cliente se encontrar na base de dados, então é verificado se o client_secret é válido.
-    elif clients.find_one({'client_id': client_id})['client_secret'] != request.get_json().get('client_secret'):
+    elif not bcrypt.checkpw(request.get_json().get('client_secret').encode('utf-8') , clients.find_one({'client_id': client_id})['client_secret']):
         client.close()
         return make_response('Invalid client secret', 403)
     
@@ -129,6 +130,7 @@ def delete():
 
 
 # Este endpoint apenas serve para teste e despeza todos os clientes registados no servidor de autorização.
+# como agora apenas a hash do client_secret é guardada na base de dados, não vale a pena mostrar.
 @app.route('/clients', methods = ['GET'])
 def clients():
     resultado = get_clients()
@@ -136,6 +138,10 @@ def clients():
     #clean result
     for i in resultado:
         i.pop('_id')
+        i.pop('client_secret')
+        #print(i, type(i['client_secret']))
+        # convert bytes to string
+        #i['client_secret'] = i['client_secret']
     return json.dumps(resultado)
 
   
@@ -191,9 +197,11 @@ def reset_mongo():
 # add client to database
 def add_client(client_id, client_secret):
     client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    # use bcrypt to hash the client_secret
+    hashed_client_secret = bcrypt.hashpw(client_secret.encode('utf-8'), bcrypt.gensalt())
     db = client['oauth']
     clients = db['clients']
-    clients.insert_one({'client_id': client_id, 'client_secret': client_secret})
+    clients.insert_one({'client_id': client_id, 'client_secret': hashed_client_secret})
     client.close()
 
 # add token to database

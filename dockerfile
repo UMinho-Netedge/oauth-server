@@ -1,7 +1,7 @@
 # Indicamos a imagem de base
 FROM python
 # Instalamos os módulos
-RUN pip install requests pyjwt cryptography flask python2-secrets pymongo
+RUN pip install requests pyjwt cryptography flask python2-secrets pymongo bcrypt
 # Criamos a pasta de trabalho dentro da imagem
 WORKDIR /app
 #criamos a pasta template

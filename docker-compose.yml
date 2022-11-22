@@ -14,7 +14,7 @@ services:
       - mongodb
     links:
       - mongodb
-    image: arom98/auth-server:6.10
+    image: arom98/auth-server:6.26
     ports:
       - "5001:5001"
   mongodb:
