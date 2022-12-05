@@ -1,0 +1,14 @@
+{
+    "scopes": {
+        "appServiceRequired": [
+            {"name" : "appx", "version" : "1.0"}, 
+            {"name" : "appy", "version" : "2.0"}
+        ],
+        "appServiceOptional": [
+            {"name" : "appz", "version" : "3.0"}
+        ],
+        "appServiceProduced": [
+            {"name" : "napp", "type" : "n", "protocol" : "http", "version" : "4.0", "security" : "alpha"}
+        ]
+    }
+}
