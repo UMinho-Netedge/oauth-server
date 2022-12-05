@@ -1,0 +1,83 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "properties": {
+      "appServiceRequired": {
+        "type": "array",
+        "items": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "version"
+            ]
+          }
+        ]
+      },
+      "appServiceOptional": {
+        "type": "array",
+        "items": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "version"
+            ]
+          }
+        ]
+      },
+      "appServiceProduced": {
+        "type": "array",
+        "items": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "protocol": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "security": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "type",
+              "protocol",
+              "version",
+              "security"
+            ]
+          }
+        ]
+      }
+    },
+    "required": [
+      "appServiceRequired",
+      "appServiceOptional",
+      "appServiceProduced"
+    ]
+  }

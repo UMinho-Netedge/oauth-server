@@ -12,6 +12,8 @@ from flask import (Flask, make_response, render_template, redirect, request,url_
 import secrets
 from pymongo import MongoClient
 import bcrypt
+import jsonschema
+from jsonschema import validate
 
 app = Flask(__name__)
 
@@ -60,6 +62,14 @@ def token():
     elif not bcrypt.checkpw(request.get_json().get('client_secret').encode('utf-8') , clients.find_one({'client_id': client_id})['client_secret']):
             client.close()
             return make_response('Invalid client secret', 403)
+
+    ##### FALTA TESTAR, MAS É ALGO DESTE GENERO 
+    # 4. se o client_secret for válido, então é verificado se o scope pedido é válido.
+    # para isto é verificado se o scope pedido está presente na lista de scopes do cliente.
+    # se não estiver é lançado um erro. 
+    #elif request.get_json().get('scopes') not in clients.find_one({' client_id': client_id})['scopes']:
+    #    client.close()
+    #    return make_response('Invalid scope', 403)
     
     # 4. se tudo estiver OK, então é criado o token de acesso (JWT). O qual é cifrado com a chave secreta, inicialmente definida.
     access_token = jwt.encode({'client_id': client_id, 'exp': time.time() + 3600}, SECRET_KEY, algorithm = 'HS256')
@@ -78,14 +88,21 @@ def token():
 
 # Endpoint usado para registo de novo clientes. Aqui o cliente apenas precisa de fazer um pedido get.
 # A resposta será um client_id e um client_secret gerados aleatoriamente.
-@app.route('/register', methods = ['GET'])
+@app.route('/register', methods = ['POST'])
 def register():
     # são criados os client_id e client_secret com tamanho de 16 e 32 caracteres respetivamente.
     client_id = secrets.token_urlsafe(16)
     client_secret = secrets.token_urlsafe(32)
 
+    # get scopes from body request
+    scopes = request.get_json().get('scopes')
+    print("SOCPES = ", scopes)
+    # validate scopes
+    if not validate_scopes(scopes):
+        return make_response('Invalid scopes format', 403)
+
     # a informação do cliente é guardada na base de dados.
-    add_client(client_id, client_secret)
+    add_client(client_id, client_secret, scopes)
 
     # finalmente é enviado ao cliente o client_id e o client_secret.
     return json.dumps({
@@ -170,6 +187,23 @@ def validate():
     else:    
         return make_response('Invalid access token', 402)
 
+
+# função auxiliar para validar formatacao dos scopes
+def validate_scopes(scopes):
+    #load schema from schema.json
+    with open('schema.json') as f:
+        schemaa = json.load(f)
+    #validate scopes
+    try:
+        jsonschema.validate(instance=scopes, schema=schemaa)
+    except jsonschema.exceptions.ValidationError as err:
+        print("DEU FALSE")
+        print(err)
+        return False
+    print("DEU TRUE")
+    return True
+
+
 ################# chamadas a base de dados #####################
 
 # Se o servidor for reiniciado, então todos os tokens são apagados da base de dados.
@@ -192,13 +226,13 @@ def reset_mongo():
     client.close()
 
 # Função que adiciona clientes a base de dados
-def add_client(client_id, client_secret):
+def add_client(client_id, client_secret, scopes):
     client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     # É usado a bibliotace BCrypt para criar a hash do client_secret.
     hashed_client_secret = bcrypt.hashpw(client_secret.encode('utf-8'), bcrypt.gensalt())
     db = client['oauth']
     clients = db['clients']
-    clients.insert_one({'client_id': client_id, 'client_secret': hashed_client_secret})
+    clients.insert_one({'client_id': client_id, 'client_secret': hashed_client_secret, 'scopes': scopes})
     client.close()
 
 # Função que adiciona tokens a base de dados
