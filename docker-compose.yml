@@ -2,7 +2,7 @@ version: "3"
 services:
   auth-server:
     container_name: oauth2-service
-    restart: always
+    restart: unless-stopped
     environment:
       #USER: netedge
       #PATH: "$PATH:/home/netedge/.local/bin"
@@ -14,7 +14,7 @@ services:
       - mongodb
     links:
       - mongodb
-    image: arom98/auth-server:7.0.2
+    image: arom98/auth-server:7.1.0
     ports:
       - "5001:5001"
   mongodb:

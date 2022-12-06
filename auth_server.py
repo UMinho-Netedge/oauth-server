@@ -63,13 +63,14 @@ def token():
             client.close()
             return make_response('Invalid client secret', 403)
 
-    ##### FALTA TESTAR, MAS É ALGO DESTE GENERO 
-    # 4. se o client_secret for válido, então é verificado se o scope pedido é válido.
-    # para isto é verificado se o scope pedido está presente na lista de scopes do cliente.
-    # se não estiver é lançado um erro. 
-    #elif request.get_json().get('scopes') not in clients.find_one({' client_id': client_id})['scopes']:
-    #    client.close()
-    #    return make_response('Invalid scope', 403)
+    # check if client has the requested scopes
+    scopes = request.get_json().get('scopes')
+    if not validate_scopes(scopes):
+        return make_response('Invalid scopes format', 403)
+    
+    if not validate_client_scopes(client_id, scopes):
+        return make_response('Invalid scopes', 403)
+
     
     # 4. se tudo estiver OK, então é criado o token de acesso (JWT). O qual é cifrado com a chave secreta, inicialmente definida.
     access_token = jwt.encode({'client_id': client_id, 'exp': time.time() + 3600}, SECRET_KEY, algorithm = 'HS256')
@@ -202,6 +203,33 @@ def validate_scopes(scopes):
         return False
     print("DEU TRUE")
     return True
+
+
+def validate_client_scopes(client_id, scopes):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['oauth']
+    clients = db['clients']
+    client_scopes = clients.find_one({'client_id': client_id})['scopes']
+    client.close()
+    print("client_scopes: ", client_scopes, type(client_scopes))
+    print("scopes: ", scopes, type(scopes))
+    print("APP SERVICE REQUIRED: ", scopes['appServiceRequired'], type(scopes['appServiceRequired']))
+
+    #verificar se algum scope não está vazio
+    if scopes["appServiceRequired"] == [] and scopes["appServiceOptional"] == [] and scopes["appServiceProduced"] == []:
+        return False
+    
+
+    # verificar se os scopes são válidos
+    for scope in scopes:
+        print("SCOPE: ", scope, type(scope))
+        for app in scopes[scope]:
+            if app not in client_scopes[scope]:
+                return False
+    
+    return True
+   
+   
 
 
 ################# chamadas a base de dados #####################
