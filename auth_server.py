@@ -17,6 +17,7 @@ from jsonschema import validate
 
 app = Flask(__name__)
 
+# dados predefinidos no docker compose
 mongodb_addr = os.environ.get("ME_CONFIG_MONGODB_SERVER")
 mongodb_port = int (os.environ.get("ME_CONFIG_MONGODB_PORT"))
 mongodb_username = os.environ.get("ME_CONFIG_MONGODB_ADMINUSERNAME")
@@ -31,7 +32,7 @@ mongodb_password = os.environ.get("ME_CONFIG_MONGODB_ADMINPASSWORD")
 
 ## Chave usada para cifrar o token de acesso dado ao cliente.
 ## nesta ultima versão não está a ser uadada para efeitos de verificação, porque a verificação está a ser feita na base de dados.
-## server apenas para cifrar o JWT.
+## serve apenas para cifrar o JWT.
 ## no futuro porderá vir a ser usada novamente.
 SECRET_KEY = 'secret-key-of-the-portuguese-empire'
 
@@ -43,6 +44,18 @@ no body incluir os seguintes campos em JSON:
 grant_type: client_credentials
 client_id: XXXXXXXX
 client_secret: XXXXXXXX
+"scopes": {
+        "appServiceRequired": [
+            {"name" : "appx", "version" : "1.0"}, 
+            {"name" : "appy", "version" : "2.0"}
+        ],
+        "appServiceOptional": [
+            {"name" : "appz", "version" : "3.0"}
+        ],
+        "appServiceProduced": [
+            {"name" : "napp", "type" : "n", "protocol" : "http", "version" : "4.0", "security" : "alpha"}
+        ]
+    }
 '''
 @app.route('/token', methods = ['POST'])
 def token():
@@ -87,22 +100,38 @@ def token():
     })
 
 
-# Endpoint usado para registo de novo clientes. Aqui o cliente apenas precisa de fazer um pedido get.
+# Endpoint usado para registo de novo clientes. Aqui o cliente precisa de fazer um pedido POST.
 # A resposta será um client_id e um client_secret gerados aleatoriamente.
+# deverá ser enviado no pedido os scopes a associar ao client, por exemplo:
+'''
+"scopes": {
+        "appServiceRequired": [
+            {"name" : "appx", "version" : "1.0"}, 
+            {"name" : "appy", "version" : "2.0"}
+        ],
+        "appServiceOptional": [
+            {"name" : "appz", "version" : "3.0"}
+        ],
+        "appServiceProduced": [
+            {"name" : "napp", "type" : "n", "protocol" : "http", "version" : "4.0", "security" : "alpha"}
+        ]
+    }
+'''
 @app.route('/register', methods = ['POST'])
 def register():
     # são criados os client_id e client_secret com tamanho de 16 e 32 caracteres respetivamente.
     client_id = secrets.token_urlsafe(16)
     client_secret = secrets.token_urlsafe(32)
 
-    # get scopes from body request
+    # scopes são retidados do request
     scopes = request.get_json().get('scopes')
     print("SOCPES = ", scopes)
-    # validate scopes
+    
+    # validação dos scopes
     if not validate_scopes(scopes):
         return make_response('Invalid scopes format', 403)
 
-    # a informação do cliente é guardada na base de dados.
+    # Se válido, então a informação do cliente é guardada na base de dados.
     add_client(client_id, client_secret, scopes)
 
     # finalmente é enviado ao cliente o client_id e o client_secret.
@@ -204,7 +233,8 @@ def validate_scopes(scopes):
     print("DEU TRUE")
     return True
 
-
+# Função que valida os campos dos scopes, verifica os que estão na base de dados e certifica, que no pedido não ha
+# scopes diferentes dos que foram registados inicialmente com o client.
 def validate_client_scopes(client_id, scopes):
     client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['oauth']
