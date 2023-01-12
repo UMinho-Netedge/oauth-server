@@ -22,6 +22,7 @@ This **OAuth 2.0** service is made to be a generic implementation of the framewo
 ## Features
 
 #### Uses a MongoDB database to save the information about registered clients and active tokens in the system.
+#### Uses JSON Schemma to verify authorization scopes of the clients.
 
 #### Endpoint:
 
