@@ -10,8 +10,15 @@ from oauthlib.oauth2 import WebApplicationClient
 import jwcrypto.jwk
 import jwcrypto.jwt
 
-client_id = "786927509372-8qqn3ed0lsdjk29ihvg9ob0eerqqia2n.apps.googleusercontent.com"
-client_secret = "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"
+# read the client id and client secret from credentials.json
+with open('credentials.json') as f:
+    data = json.load(f)
+    client_id = data['client_id']
+    client_secret = data['client_secret']
+
+print("client_id: ", client_id)
+print("client_secret: ", client_secret)
+
 redirect_uri = "http://localhost:5000/callback"
 discovery_url = "https://accounts.google.com/.well-known/openid-configuration"
 
