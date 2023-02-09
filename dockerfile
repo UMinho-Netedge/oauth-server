@@ -1,8 +1,11 @@
-# Indicamos a imagem de base
-FROM python
+FROM alpine:3.17.1
+
+RUN apk update
+RUN apk add --no-cache python3 py3-pip
+
 # Instalamos os módulos
 RUN pip install requests pyjwt cryptography flask python2-secrets pymongo bcrypt jsonschema
-# Criamos a pasta de trabalho dentro da imagem
+
 WORKDIR /app
 #criamos a pasta template
 #RUN mkdir templates
