@@ -286,7 +286,7 @@ def reset_mongo():
 # Função que adiciona clientes a base de dados
 def add_client(client_id, client_secret, scopes):
     client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
-    # É usado a bibliotace BCrypt para criar a hash do client_secret.
+    # É usado a biblioteca BCrypt para criar a hash do client_secret.
     hashed_client_secret = bcrypt.hashpw(client_secret.encode('utf-8'), bcrypt.gensalt())
     db = client['oauth']
     clients = db['clients']

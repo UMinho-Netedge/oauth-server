@@ -16,4 +16,3 @@ COPY schema.json .
 EXPOSE 5001
 # Colocamos o servidor a correr
 CMD [ "python", "auth_server.py" ]
-
