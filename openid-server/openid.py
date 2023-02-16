@@ -6,7 +6,6 @@ import sys
 import time
 from flask import (Flask, make_response, render_template, redirect, request,url_for)
 import requests
-#import oauthlib
 from oauthlib.oauth2 import WebApplicationClient
 import jwcrypto.jwk
 import jwcrypto.jwt
