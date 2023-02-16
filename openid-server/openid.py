@@ -82,10 +82,15 @@ def callback():
     # get the id token
     id_token = data['id_token']
     # get the refresh token
-    refresh_token = data['refresh_token']
-
+    try:
+        refresh_token = data['refresh_token']
+    except:
+        # if the refresh token is not returned, it means that it was already used (pedido de refresh)
+        return data
     # Close the connection
     conn.close()
+
+    #code = ""
 
     # aqui tenho que enviar para o cliente o id token e o access token
     return data
