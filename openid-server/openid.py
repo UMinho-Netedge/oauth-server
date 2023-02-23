@@ -1,5 +1,6 @@
 #! python3
 import http
+import os
 import json
 import ssl
 import sys
@@ -10,7 +11,7 @@ import requests
 from oauthlib.oauth2 import WebApplicationClient
 import jwcrypto.jwk
 import jwcrypto.jwt
-
+from pymongo import MongoClient
 
 
 # read the client id and client secret from credentials.json
@@ -39,6 +40,45 @@ id_token_keys = jwcrypto.jwk.JWKSet.from_json(
 # flask server
 app = Flask(__name__)
 
+
+mongodb_addr = os.environ.get("ME_CONFIG_MONGODB_SERVER")
+mongodb_port = int (os.environ.get("ME_CONFIG_MONGODB_PORT"))
+mongodb_username = os.environ.get("ME_CONFIG_MONGODB_ADMINUSERNAME")
+mongodb_password = os.environ.get("ME_CONFIG_MONGODB_ADMINPASSWORD")
+
+### Para testes locais
+#mongodb_addr = "mongodb://localhost:27017"
+#mongodb_port = 27017
+#mongodb_username = ""
+#mongodb_password = ""
+
+
+
+# Auxiliar funcctions
+
+def validation(jwt_claims):
+    validation = True   
+    # 1. AUD - The audience of the token. This should be equal to the client_id.
+    if jwt_claims['aud'] != client_id:
+        validation = False
+    
+    # 2. ISS - The issuer of the token. This should be equal to https://accounts.google.com or accounts.google.com.
+    if jwt_claims['iss'] != "https://accounts.google.com" and jwt_claims['iss'] != "accounts.google.com":
+        validation = False
+    
+    # 3. EXP - The expiration time of the token. This should be after the current time.
+    if jwt_claims['exp'] < time.time():
+        validation = False
+
+    # 4. IAT - The time the token was issued. This should be before the current time.
+    if jwt_claims['iat'] > time.time():
+        validation = False
+    
+    return validation
+
+
+
+
 # endpoint to get the login page
 @app.route('/login')
 def login():
@@ -59,6 +99,7 @@ def login():
     print(url)
     return redirect(url)
 
+
 # callback endpoint, to get the access token and id token
 @app.route('/callback', methods = ['GET'])
 def callback():
@@ -76,32 +117,60 @@ def callback():
     res = conn.getresponse()
     data = json.loads(res.read())
 
-    print("RESPONSE: ", data)
+    #print("RESPONSE: ", data)
     # get the access token
     access_token = data['access_token']
     # get the id token
     id_token = data['id_token']
+    # get the scope
+    scope = data['scope']
+
     # get the refresh token
-    try:
-        refresh_token = data['refresh_token']
-    except:
-        # if the refresh token is not returned, it means that it was already used (pedido de refresh)
-        return data
+    jwt = jwcrypto.jwt.JWT(jwt=id_token, key=id_token_keys, algs=oidc_config['id_token_signing_alg_values_supported'])
+    jwt_claims = json.loads(jwt.claims)
+    #print("\nJWT: ", jwt_claims)
+
+    token_validation = validation(jwt_claims)
+    if token_validation: # se for true, então guarda na BD, assim assegurando que tudo o que é guardado é válido.
+        try:
+            refresh_token = data['refresh_token']
+            
+            # get the expiration time from id token
+            expiration = jwt_claims['exp']
+            print("expiration: ", expiration)
+            
+            # save data in the database
+            add_token_with_refresh(access_token, id_token, refresh_token, scope, expiration) 
+        except:
+            # if the refresh token is not returned, it means that it was already used (pedido de refresh)
+            expiration = jwt_claims['exp']
+            add_token(access_token, id_token, scope, expiration)
+            conn.close()
+            return data
+    
     # Close the connection
     conn.close()
 
-    #code = ""
+    # return token in authorization header
+    response = make_response('Google Token received sucessfully!')
+    response.headers['Authorization'] =  data
 
-    # aqui tenho que enviar para o cliente o id token e o access token
-    return data
+
+    # all data is returned
+    return response
 
 
 # endpoint to get new access token with refresh token
 @app.route('/refresh', methods = ['POST'])
 def refresh():
-    # get the refresh token from request body (json)
-    refresh_token = request.json['refresh_token']
 
+    # get access token from header
+    data = request.headers.get('Authorization')
+    access_token = data.split(" ")[1]
+    print("ACCESS TOKEN: ", access_token)
+   
+    # get refresh token from database
+    refresh_token = get_refresh_token(access_token)
     
     print("REFRESH TOKEN: ", refresh_token)
 
@@ -119,54 +188,103 @@ def refresh():
 
     return data
 
-# endpoint to validate the id token
+# endpoint to validate the access token
 @app.route('/validate', methods = ['POST'])
 def validate():
-
-    validation = True
-
-    # get the id token from request body (json)
-    id_token = request.json['id_token']
-
-    # Decode and display the ID Tokens
-    # This works because the ID Token is a JWT, which jwcrypto can decode and verify directly.
-    ## catch exception if the token is invalid or expired
-    try:
-        jwt = jwcrypto.jwt.JWT(jwt=id_token, key=id_token_keys, algs=oidc_config['id_token_signing_alg_values_supported'])
-        jwt_claims = json.loads(jwt.claims)
-    except:
-        #validation = False
-        return  "Token INVALID or EXPIRED"
-
-    print("\nJWT: ", jwt_claims)
-    jwt_formatted = json.dumps(jwt_claims, indent=4)
-    print('')
-    print(f"ID Token:")
-    print(jwt_formatted)
-
-    # validation (era bom por isto de outra maneira)
-
-    # 1. AUD - The audience of the token. This should be equal to the client_id.
-    if jwt_claims['aud'] != client_id:
-        validation = False
-    
-    # 2. ISS - The issuer of the token. This should be equal to https://accounts.google.com or accounts.google.com.
-    if jwt_claims['iss'] != "https://accounts.google.com" and jwt_claims['iss'] != "accounts.google.com":
-        validation = False
-    
-    # 3. EXP - The expiration time of the token. This should be after the current time.
-    if jwt_claims['exp'] < time.time():
-        validation = False
-
-    # 4. IAT - The time the token was issued. This should be before the current time.
-    if jwt_claims['iat'] > time.time():
-        validation = False
-    
-    if validation:
-        return "Token VALID"
+    data = request.headers.get('Authorization')
+    print("DATA: ", data)
+    access_token = data.split(" ")[1]
+    print("ACCESS TOKEN: ", access_token)
+    if validate_token(access_token):
+        return "Token is VALID"
     else:
-        return  "Token INVALID"
+        return "Token is INVALID"
+
+
+
+#################### DATABSE CONNECTION AND QUERIES ####################
+
+# Se o servidor for reiniciado, então todos os tokens são apagados da base de dados.
+@app.before_first_request
+def reset_mongo():
+    print("GOING TO RESET MONGO")
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    print("Connected to database successfully!")
+    # delete token collection
+    #db = client['openid']
+    #tokens = db['tokens']
+    #tokens.delete_many({})
+    
+    #client.drop_database('oauth')
+    #print("Database dropped successfully!")
+    # create the database and collections
+    #db = client.oauth
+    #db.create_collection('clients')
+    #db.create_collection('tokens')
+    # close connection
+    client.close()
+
+# Função que adiciona tokens a base de dados
+def add_token(access_token, id_token, scope, expires):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    tokens = db['tokens']
+    tokens.insert_one({'access_token': access_token, 'id_token': id_token, 'scope': scope, 'expires': expires})
+    print("Token added successfully!")
+    client.close()
+
+# Função que adiciona tokens a base de dados
+def add_token_with_refresh(access_token, id_token, refresh_token, scope, expires):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    tokens = db['tokens']
+    tokens.insert_one({'access_token': access_token, 'id_token': id_token, "refresh_token": refresh_token, 'scope': scope, 'expires': expires})
+    print("Token added successfully!")
+    client.close()
+
+
+# Função que elimina um token da base de dados
+def delete_token(access_token):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    tokens = db['tokens']
+    tokens.delete_one({'access_token': access_token})
+    client.close()
+
+
+# Função que valida um token da base de dados
+def validate_token(access_token):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    tokens = db['tokens']
+    token = tokens.find_one({'access_token': access_token})
+    if token is None:
+        client.close()
+        return False
+    # verifica-se se o token expirou
+    else:
+        if token['expires'] < time.time():
+        # como já expirou, então é apagado da base de dados.
+            delete_token(access_token)
+            client.close()
+            return False
+
+    client.close()
+    return True
+
+# Função que vai buscar o refresh token a base de dados
+def get_refresh_token(access_token):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    tokens = db['tokens']
+    token = tokens.find_one({'access_token': access_token})
+    if token is None:
+        client.close()
+        return "Token not found"
+    else:
+        client.close()
+        return token['refresh_token']
+
 
 
 app.run(host='0.0.0.0', port = 5000, debug = True)
-

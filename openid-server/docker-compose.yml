@@ -1,0 +1,33 @@
+version: "3"
+services:
+  auth-server:
+    container_name: openid-service
+    restart: unless-stopped
+    environment:
+      #USER: netedge
+      #PATH: "$PATH:/home/netedge/.local/bin"
+      ME_CONFIG_MONGODB_SERVER: "mongodb"
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ""
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ""
+    depends_on: 
+      - mongodb
+    links:
+      - mongodb
+    image: arom98/openid:1.0.10
+    ports:
+      - "5000:5000"
+  mongodb:
+    image: mongo
+    ports:
+      - 27017:27017
+    expose:
+      - 27017
+    container_name: mongo2
+    restart: unless-stopped
+    volumes:
+      - ./data:/data/db
+    #volumes:
+    #  - mongodb:/data/db
+volumes:
+ mongodb:
