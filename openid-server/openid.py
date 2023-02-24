@@ -12,6 +12,9 @@ from oauthlib.oauth2 import WebApplicationClient
 import jwcrypto.jwk
 import jwcrypto.jwt
 from pymongo import MongoClient
+# flask cors
+from flask_cors import CORS
+
 
 
 # read the client id and client secret from credentials.json
@@ -99,6 +102,10 @@ def login():
     print(url)
     return redirect(url)
 
+    # return  access token from /callback endpoint in authorization header to the client
+    return make_response(req.text, 200, {'Content-Type': 'text/html'})
+
+
 
 # callback endpoint, to get the access token and id token
 @app.route('/callback', methods = ['GET'])
@@ -154,6 +161,7 @@ def callback():
     # return token in authorization header
     response = make_response('Google Token received sucessfully!')
     response.headers['Authorization'] =  data
+    response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
     # all data is returned
