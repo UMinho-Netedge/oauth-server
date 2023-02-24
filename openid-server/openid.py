@@ -154,10 +154,10 @@ def callback():
     # return token in authorization header
     response = make_response('Google Token received sucessfully!')
     response.headers['Authorization'] =  data
-
+    return response
 
     # all data is returned
-    return response
+    # return data
 
 
 # endpoint to get new access token with refresh token
