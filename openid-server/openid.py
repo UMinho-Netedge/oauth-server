@@ -103,7 +103,7 @@ def login():
     return redirect(url)
 
     # return  access token from /callback endpoint in authorization header to the client
-    return make_response(req.text, 200, {'Content-Type': 'text/html'})
+    #return make_response(req.text, 200, {'Content-Type': 'text/html'})
 
 
 
@@ -153,7 +153,11 @@ def callback():
             expiration = jwt_claims['exp']
             add_token(access_token, id_token, scope, expiration)
             conn.close()
-            return data
+            response = make_response('Google Token received sucessfully!')
+            response.headers['Authorization'] =  data
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response
+            #return data
     
     # Close the connection
     conn.close()
