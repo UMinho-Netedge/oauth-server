@@ -4,12 +4,14 @@ from flask import (Flask, make_response, render_template, redirect, request,url_
 import time
 import json
 import jwt
+from flask_cors import CORS
 #from osmclient import client
 
 
 
 app = Flask(__name__)
 SECRET_KEY = 'secret-key-of-the-portuguese-empire'
+COR = CORS(app, origins=['*','http://localhost:3000'])
 
 ####### OSM CLIENT ########
 #myclient = client.Client(host="192.168.86.210", sol005=True, user="test", password="netedge!T3st", project="test")
@@ -18,7 +20,7 @@ SECRET_KEY = 'secret-key-of-the-portuguese-empire'
 
 
 # receives username and password from the client ( and then tests login on OSM client)
-@app.route('/login')
+@app.route('/login', methods = ['POST'])
 def login():
     # get username and password from request body
     username = request.args.get('username')
