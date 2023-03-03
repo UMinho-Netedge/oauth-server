@@ -88,14 +88,19 @@ def validate():
 #logout
 @app.route('/logout', methods = ['POST'])
 def logout():
+
     #get token from authorization header
-    data = request.headers.get('Authorization')
-    print("DATA: ", data)
-    access_token = data.split(" ")[1]
-    #delete token from database
-    delete_token(access_token)
-    print("Token deleted from database successfully!")
-    return make_response("Token deleted from database successfully!", 200)
+    token = request.json.get('access_token')
+    #data = request.headers.get('Authorization')
+    print("TOKEN: ", token)
+    if token == None:
+        return make_response("Erro",401)
+    else:
+        #access_token = token.split(" ")[1]
+        #delete token from database
+        delete_token(token)
+        print("Token deleted from database successfully!")
+        return make_response("sucesso", 200)
 
 
 
