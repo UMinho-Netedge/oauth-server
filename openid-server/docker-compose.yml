@@ -14,7 +14,7 @@ services:
       - mongodb
     links:
       - mongodb
-    image: arom98/openid:1.0.19
+    image: arom98/openid:1.0.27
     ports:
       - "5000:5000"
   mongodb:
