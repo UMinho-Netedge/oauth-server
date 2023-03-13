@@ -66,6 +66,7 @@ def login():
 # por agora recebe o token no header de autorização
 @app.route('/validate', methods = ['POST'])
 def validate():
+    ## alterar, se falhar alguma destas fases de tirar o token, então tem de ser considerado um pedido invalido
     data = request.headers.get('Authorization')
     print("DATA: ", data)
     access_token = data.split(" ")[1]
@@ -88,13 +89,14 @@ def validate():
 #logout
 @app.route('/logout', methods = ['POST'])
 def logout():
-
+    app.logger.info("HEADERS: ", request.headers)
+    #print(request.headers)
     #get token from authorization header
     token = request.json.get('access_token')
     #data = request.headers.get('Authorization')
     print("TOKEN: ", token)
     if token == None:
-        return make_response("Erro",401)
+        return make_response("Erro", 401)
     else:
         #access_token = token.split(" ")[1]
         #delete token from database
