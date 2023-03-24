@@ -7,13 +7,17 @@ import os
 import jwt
 from flask_cors import CORS
 from pymongo import MongoClient
+import secrets
 #from osmclient import client
 
 
 
 app = Flask(__name__)
+app.debug = True
 SECRET_KEY = 'secret-key-of-the-portuguese-empire'
+SECRET_KEY2 = 'another-very-secret-key'
 COR = CORS(app, origins=['*','http://localhost:3000'])
+
 
 
 mongodb_addr = os.environ.get("ME_CONFIG_MONGODB_SERVER")
@@ -26,6 +30,7 @@ mongodb_password = os.environ.get("ME_CONFIG_MONGODB_ADMINPASSWORD")
 #mongodb_port = 27017
 #mongodb_username = ""
 #mongodb_password = ""
+
 
 ####### OSM CLIENT ########
 #myclient = client.Client(host="192.168.86.210", sol005=True, user="test", password="netedge!T3st", project="test")
@@ -41,22 +46,42 @@ def login():
     password = request.json.get('password')
     project = request.json.get('project')
 
-    print(username)
-    print(password)
-    print(project)
+    app.logger.debug("username: %s" %username)
+    app.logger.debug("password: %s" %password)
+    app.logger.debug("project: %s" %project)
+    #print(username)
+    #print(password)
+    #print(project)
 
     # test login on OSM client (EM FALTA)
 
     # if login is successful, return a response with the access token
+    # add a random nonce to the token
     expires = round(time.time() + 3600)
-    access_token = jwt.encode({'client_id': username, 'exp': expires}, SECRET_KEY, algorithm = 'HS256')
+    nonce = secrets.token_urlsafe(16)
+    access_token = jwt.encode({'client_id': username, 'exp': expires, 'nonce': nonce}, SECRET_KEY, algorithm = 'HS256')
+
+    # create a refresh token, must be different from access token
+    expires2 = round(time.time() + 43200)
+    nonce2 = secrets.token_urlsafe(16)                                 
+    refresh_token = jwt.encode({'client_id': username, 'exp': expires2, 'nonce': nonce2}, SECRET_KEY2, algorithm = 'HS256')
+    
+    #print("access_token: ", access_token)
+    #print("refresh_token: ", refresh_token)
+
+    app.logger.debug("access_token: %s" %access_token)
+    app.logger.debug("refresh_token: %s" %refresh_token)
 
     scope = {}
     # save token in database
-    add_token(access_token, username, scope, expires)
+    add_token(access_token, username, scope, expires, nonce)
+    add_refresh_token(refresh_token, access_token, username, expires2, nonce2)
+
+    # tenho que adicionar o refresh tokem a bd
 
     return json.dumps({
         'access_token': access_token,
+        'refresh_token': refresh_token,
         'token_type': 'Bearer',
         'expires': expires,
     })
@@ -81,20 +106,55 @@ def validate():
         return make_response('Invalid access token', 402)
     
 
-## rota de fefresh do token ?
-## preciso de gerar o de refresh token tambem no inicio? ou como sou eu que valido então posso gerar logo outro token de acesso?
-## pensar melhor que isto pode gerar problemas de segurança
+## rota de refresh do token 
+@app.route('/refresh', methods = ['POST'])
+def refresh():
+    # recebe o refresh token da mesma maneira que o access token
+    # Authorization: Bearer <refresh_token>   faz sentido?
+    data = request.headers.get('Authorization')
+    print("DATA: ", data)
+    refresh_token = data.split(" ")[1]
+    print("REFRESH TOKEN: ", refresh_token)
+
+    if refresh_token == None:
+        return make_response('No token provided correctly', 401)
+    
+    # se o token for válido, então é gerado um novo access token
+    if validate_refresh_token(refresh_token):
+        # get username from refresh token
+        username = get_username_from_refresh_token(refresh_token)
+        # create a new access token
+        expires = round(time.time() + 3600)
+        nonce = secrets.token_urlsafe(16)
+        access_token = jwt.encode({'client_id': username, 'exp': expires, 'nonce' : nonce}, SECRET_KEY, algorithm = 'HS256')
+        # save token in database
+        scope = {} # por agora está assim.... [EM FALTA]
+        add_token(access_token, username, scope, expires, nonce)
+        # return new access token
+        return json.dumps({
+            'access_token': access_token,
+            'token_type': 'Bearer',
+            'expires': expires,
+        })
+    else:
+        return make_response('Invalid refresh token', 402)
+
 
 
 #logout
 @app.route('/logout', methods = ['POST'])
 def logout():
-    app.logger.info("HEADERS: ", request.headers)
-    #print(request.headers)
-    #get token from authorization header
-    token = request.json.get('access_token')
-    #data = request.headers.get('Authorization')
+    # get all info from request header
+    app.logger.debug("CHEGUEI AO LOGOUT")
+
+    data = request.headers.get('Authorization')
+    if data == None:
+        return make_response("Token not received", 401)
+    app.logger.debug("DATA: ", data)
+    token = data.split(" ")[1]
+    app.logger.debug("TOKEN: ", token)
     print("TOKEN: ", token)
+
     if token == None:
         return make_response("Erro", 401)
     else:
@@ -126,27 +186,38 @@ def reset_mongo():
     #print("Database dropped successfully!")
     # create the database and collections
     #db = client.oauth
-    #db.create_collection('clients')
+    #db.create_collection('refresh_tokens')
     #db.create_collection('tokens')
     # close connection
     client.close()
 
 # Função que adiciona tokens a base de dados
-def add_token(access_token, username, scope, expires):
+def add_token(access_token, username, scope, expires, nonce):
     client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['openid']
     tokens = db['tokens']
-    tokens.insert_one({'username': username, 'access_token': access_token, 'scope': scope, 'expires': expires})
+    tokens.insert_one({'username': username, 'access_token': access_token, 'scope': scope, 'expires': expires, 'nonce': nonce})
     print("Token added successfully!")
     client.close()
 
-# Função que adiciona tokens a base de dados
-def add_token_with_refresh(access_token, id_token, refresh_token, scope, expires):
+# Função de adiciona o refresh token a base de dados na coleção refresh_tokens
+def add_refresh_token(refresh_token, access_token, username, expires, nonce):
     client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
     db = client['openid']
-    tokens = db['tokens']
-    tokens.insert_one({'access_token': access_token, 'id_token': id_token, "refresh_token": refresh_token, 'scope': scope, 'expires': expires})
-    print("Token added successfully!")
+    refresh_tokens = db['refresh_tokens']
+    # there will be a list with all the access tokens that were generated with the same refresh token
+    refresh_tokens.insert_one({'username': username, 'refresh_token': refresh_token, 'access_token': access_token, 'expires': expires, 'nonce': nonce})
+    print("Refresh token added successfully!")
+    client.close()
+
+# Função que adiciona um access token a coleção de refresh tokens
+def add_access_token_to_refresh(refresh_token, access_token):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    refresh_tokens = db['refresh_tokens']
+    # there will be a list with all the access tokens that were generated with the same refresh token
+    refresh_tokens.update_one({'refresh_token': refresh_token}, {'$push': {'access_token': access_token}})
+    print("Access token added successfully!")
     client.close()
 
 
@@ -156,6 +227,14 @@ def delete_token(access_token):
     db = client['openid']
     tokens = db['tokens']
     tokens.delete_one({'access_token': access_token})
+    client.close()
+
+# Função que elimina um refresh token da base de dados
+def delete_refresh_token(refresh_token):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    tokens = db['refresh_tokens']
+    tokens.delete_one({'refresh_token': refresh_token})
     client.close()
 
 
@@ -179,7 +258,40 @@ def validate_token(access_token):
     client.close()
     return True
 
+# Função que valida um refresh token da base de dados
+def validate_refresh_token(refresh_token):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    tokens = db['refresh_tokens']
+    token = tokens.find_one({'refresh_token': refresh_token})
+    if token is None:
+        client.close()
+        return False
+    # verifica-se se o token expirou
+    else:
+        if token['expires'] < time.time():
+        # como já expirou, então é apagado da base de dados.
+            delete_refresh_token(refresh_token)
+            client.close()
+            return False
 
+    client.close()
+    return True
+
+# Função que retorna o username de um refresh token
+def get_username_from_refresh_token(refresh_token):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    tokens = db['refresh_tokens']
+    token = tokens.find_one({'refresh_token': refresh_token})
+    if token is None:
+        client.close()
+        return None
+    else:
+        # get username
+        username = token['username']
+        client.close()
+        return username
 
 
 
