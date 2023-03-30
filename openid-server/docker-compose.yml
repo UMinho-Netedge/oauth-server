@@ -2,7 +2,12 @@ version: "3"
 services:
   auth-server:
     container_name: openid-service
-    restart: unless-stopped
+    build:
+        context: .
+        dockerfile: dockerfile
+    restart: always
+    volumes:
+        - ./:/app/
     environment:
       #USER: netedge
       #PATH: "$PATH:/home/netedge/.local/bin"
@@ -14,7 +19,7 @@ services:
       - mongodb
     links:
       - mongodb
-    image: arom98/openid:1.0.46
+    image: arom98/openid:1.0.53
     ports:
       - "5000:5000"
   mongodb:

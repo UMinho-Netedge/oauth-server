@@ -1,18 +1,30 @@
-FROM alpine:3.17.1
+#FROM alpine:3.17.1
+FROM python:3.9
 
-RUN apk update
-RUN apk add --no-cache python3 py3-pip
-RUN pip install --upgrade pip
+#RUN apk update
+#RUN apk add --no-cache python3 py3-pip
 
-COPY requirements.txt /app/requirements.txt
+#RUN pip install --upgrade pip
+
+
+RUN ["apt-get", "update"]
 
 WORKDIR /app
 
+COPY . /app
+ENV PATH="$PATH:/app/.local/bin"
 RUN pip install -r requirements.txt
 
-COPY . /app
+RUN ["apt-get", "install", "libcurl4-openssl-dev"]
+RUN ["apt-get", "install", "libssl-dev"]
+RUN ["pip", "install", "python-magic"]
+RUN ["pip", "install", "git+https://osm.etsi.org/gerrit/osm/IM", "--upgrade"]
+RUN ["pip", "install", "git+https://osm.etsi.org/gerrit/osm/osmclient"]
+RUN ["pip", "install", "-r", "/app/osmclient/requirements.txt"]
 
-ENV PORT 5000
+ENV OSM_CLIENT_VERSION=v13.0
+
+#ENV PORT 5000
 
 EXPOSE 5000
 

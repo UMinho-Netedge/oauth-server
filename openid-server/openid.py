@@ -8,7 +8,8 @@ import jwt
 from flask_cors import CORS
 from pymongo import MongoClient
 import secrets
-#from osmclient import client
+from osmclient import client
+import requests
 
 
 
@@ -32,9 +33,8 @@ mongodb_password = os.environ.get("ME_CONFIG_MONGODB_ADMINPASSWORD")
 #mongodb_password = ""
 
 
-####### OSM CLIENT ########
-#myclient = client.Client(host="192.168.86.210", sol005=True, user="test", password="netedge!T3st", project="test")
-#myclient.get_token()
+
+
 
 
 
@@ -53,14 +53,29 @@ def login():
     #print(password)
     #print(project)
 
-    # test login on OSM client (EM FALTA)
+    ####### OSM CLIENT ########
+    try:
+        
+        #myclient = client.Client(host="192.168.86.210", sol005=True)
+        #myclient = client.Client(host="192.168.86.210", sol005=True, user="test", password="netedge!T3st", project="test", debug=True)
+        myclient = client.Client(host="192.168.86.210", sol005=True, user=username, password=password, project=project, debug=True)
+        result = myclient.ns.list()
+        #result = myclient.get_token()
+        #app.logger.debug("OSM RESULT: %s", result)
+    except Exception as e:
+        if "401" in str(e):
+            app.logger.debug("Exception: %s", e)
+            return make_response('Login failed: Invalid credentials --- Unauthorized', 401)
+        else:
+            return make_response('error: %s' %e, 500)
 
+
+   
     # if login is successful, return a response with the access token
     # add a random nonce to the token
     expires = round(time.time() + 3600)
     nonce = secrets.token_urlsafe(16)
     access_token = jwt.encode({'client_id': username, 'exp': expires, 'nonce': nonce}, SECRET_KEY, algorithm = 'HS256')
-
     # create a refresh token, must be different from access token
     expires2 = round(time.time() + 43200)
     nonce2 = secrets.token_urlsafe(16)                                 
@@ -68,17 +83,13 @@ def login():
     
     #print("access_token: ", access_token)
     #print("refresh_token: ", refresh_token)
-
     app.logger.debug("access_token: %s" %access_token)
     app.logger.debug("refresh_token: %s" %refresh_token)
-
     scope = {}
     # save token in database
     add_token(access_token, username, scope, expires, nonce)
     add_refresh_token(refresh_token, access_token, username, expires2, nonce2)
-
     # tenho que adicionar o refresh tokem a bd
-
     return json.dumps({
         'access_token': access_token,
         'refresh_token': refresh_token,
