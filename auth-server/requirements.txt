@@ -1,0 +1,10 @@
+requests==2.28.1
+flask==2.2.2
+pymongo==4.3.3
+flask-cors == 3.0.10
+pymongo==4.3.3
+pyjwt==2.5.0
+cryptography==40.0.1
+python2-secrets==1.0.5
+bcrypt==3.2.0
+jsonschema==4.17.3
