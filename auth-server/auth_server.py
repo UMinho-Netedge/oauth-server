@@ -89,6 +89,7 @@ def token():
     access_token = jwt.encode({'client_id': client_id, 'exp': time.time() + 3600}, SECRET_KEY, algorithm = 'HS256')
 
     # 5. O token de acesso é guardado na base de dados.
+    expires = round(time.time() + 3600)
     add_token(access_token, client_id, 'read', time.time() + 3600)
     client.close()
 
@@ -96,7 +97,7 @@ def token():
     return json.dumps({
         'access_token': access_token,
         'token_type': 'Bearer',
-        'expires_in': 3600
+        'expires': 3600
     })
 
 
@@ -173,9 +174,7 @@ def delete():
     delete_tokens(client_id)
     client.close()
 
-    return json.dumps({
-        "message": "Client and associated tokens deleted successfully"
-    })
+    return make_response('Client and associated tokens deleted successfully', 200)
 
 
 # Este endpoint apenas serve para teste e despeza todos os clientes registados no servidor de autorização.
@@ -196,20 +195,15 @@ def clients():
 # para este efeito é verificado se o token se encontra na base de dados.
 # seguidamente é feita a validação do tempo de expiração do token.
 # se tudo estiver OK, então é enviado uma mensagem a indicar que o token é valido.
-@app.route('/validate_token', methods = ['POST'])
+@app.route('/validate', methods = ['POST'])
 def validate():
-    ## se o token viesse no body era assim.
-    #access_token = request.form.get('access_token')
-    ## tento tirar o token da query string
-    access_token = request.args.get('access_token')
+    ## alterar, se falhar alguma destas fases de tirar o token, então tem de ser considerado um pedido invalido
+    data = request.headers.get('Authorization')
+    print("DATA: ", data)
+    access_token = data.split(" ")[1]
+    print("ACCESS TOKEN: ", access_token)
     if access_token == None:
-        ## se não conseguir, então tento tirar o token do header de autorização.
-        access_token = request.headers.get('authorization')
-        access_token = access_token.split(' ')[1]
-    ## se não conseguir de nenhuma das formas, então assumo que o cliente enviou um pedido inválido.
-    else:
-        if access_token == None:
-            return make_response('No token provided correctly', 401)
+        return make_response('No token provided correctly', 401)
     
     # responde de acordo com o resultado da validação.
     if validate_token(access_token):
