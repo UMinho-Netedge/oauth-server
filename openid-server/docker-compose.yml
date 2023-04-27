@@ -19,7 +19,7 @@ services:
       - mongodb
     links:
       - mongodb
-    image: arom98/openid:1.0.53
+    image: uminhonetedge/openid-server:1.0.54
     ports:
       - "5000:5000"
   mongodb:

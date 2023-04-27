@@ -54,14 +54,15 @@ def login():
     #print(project)
 
     ####### OSM CLIENT ########
+    result = []
     try:
         
         #myclient = client.Client(host="192.168.86.210", sol005=True)
         #myclient = client.Client(host="192.168.86.210", sol005=True, user="test", password="netedge!T3st", project="test", debug=True)
         myclient = client.Client(host="192.168.86.210", sol005=True, user=username, password=password, project=project, debug=True)
-        result = myclient.ns.list()
+        result = myclient.nsd.list()
         #result = myclient.get_token()
-        #app.logger.debug("OSM RESULT: %s", result)
+        app.logger.debug("OSM RESULT: %s", result)
     except Exception as e:
         if "401" in str(e):
             app.logger.debug("Exception: %s", e)
@@ -95,6 +96,7 @@ def login():
         'refresh_token': refresh_token,
         'token_type': 'Bearer',
         'expires': expires,
+        'nsd': result,
     })
 
 
