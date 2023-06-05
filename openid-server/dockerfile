@@ -15,8 +15,8 @@ COPY . /app
 ENV PATH="$PATH:/app/.local/bin"
 RUN pip install -r requirements.txt
 
-RUN ["apt-get", "install", "libcurl4-openssl-dev"]
-RUN ["apt-get", "install", "libssl-dev"]
+RUN ["apt-get", "-y", "install", "libcurl4-openssl-dev"]
+RUN ["apt-get", "-y", "install", "libssl-dev"]
 RUN ["pip", "install", "python-magic"]
 RUN ["pip", "install", "git+https://osm.etsi.org/gerrit/osm/IM", "--upgrade"]
 RUN ["pip", "install", "git+https://osm.etsi.org/gerrit/osm/osmclient"]
