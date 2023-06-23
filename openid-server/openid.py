@@ -20,7 +20,7 @@ SECRET_KEY2 = 'another-very-secret-key'
 COR = CORS(app, origins=['*','http://localhost:3000'])
 
 
-
+# dados predefinidos no docker compose
 mongodb_addr = os.environ.get("ME_CONFIG_MONGODB_SERVER")
 mongodb_port = int (os.environ.get("ME_CONFIG_MONGODB_PORT"))
 mongodb_username = os.environ.get("ME_CONFIG_MONGODB_ADMINUSERNAME")
@@ -31,10 +31,6 @@ mongodb_password = os.environ.get("ME_CONFIG_MONGODB_ADMINPASSWORD")
 #mongodb_port = 27017
 #mongodb_username = ""
 #mongodb_password = ""
-
-
-
-
 
 
 
@@ -50,7 +46,7 @@ def login():
     app.logger.debug("password: %s" %password)
     app.logger.debug("project: %s" %project)
     #print(username)
-    #print(password)
+    #print(password)  for debug
     #print(project)
 
     ####### OSM CLIENT ########
@@ -154,7 +150,8 @@ def refresh():
 
 
 
-#logout
+# rota de logout. Aqui o token é apagado da base de dados.
+# desta forma garantindo que o token não é mais válido.
 @app.route('/logout', methods = ['POST'])
 def logout():
     # get all info from request header

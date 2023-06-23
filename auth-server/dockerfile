@@ -5,15 +5,7 @@ RUN apk add --no-cache python3 py3-pip
 
 RUN pip install --upgrade pip
 
-# Instalamos os módulos
-#RUN pip install requests pyjwt cryptography flask python2-secrets pymongo bcrypt jsonschema
-
 WORKDIR /app
-#criamos a pasta template
-#RUN mkdir templates
-# Copiamos o resto
-#COPY auth_server.py .
-#COPY schema.json .
 COPY . /app
 ENV PATH="$PATH:/app/.local/bin"
 RUN pip install -r requirements.txt
