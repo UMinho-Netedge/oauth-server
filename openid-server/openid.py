@@ -25,6 +25,7 @@ mongodb_addr = os.environ.get("ME_CONFIG_MONGODB_SERVER")
 mongodb_port = int (os.environ.get("ME_CONFIG_MONGODB_PORT"))
 mongodb_username = os.environ.get("ME_CONFIG_MONGODB_ADMINUSERNAME")
 mongodb_password = os.environ.get("ME_CONFIG_MONGODB_ADMINPASSWORD")
+osm_hostname = os.environ.get("OSM_HOSTNAME")
 
 ### Para testes locais
 #mongodb_addr = "mongodb://localhost:27017"
@@ -55,7 +56,7 @@ def login():
         
         #myclient = client.Client(host="192.168.86.210", sol005=True)
         #myclient = client.Client(host="192.168.86.210", sol005=True, user="test", password="netedge!T3st", project="test", debug=True)
-        myclient = client.Client(host="192.168.86.210", sol005=True, user=username, password=password, project=project, debug=True)
+        myclient = client.Client(host=osm_hostname, sol005=True, user=username, password=password, project=project, debug=True)
         result = myclient.nsd.list()
         #result = myclient.get_token()
         app.logger.debug("OSM RESULT: %s", result)
