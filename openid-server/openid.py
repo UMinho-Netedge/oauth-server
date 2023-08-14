@@ -137,12 +137,18 @@ def refresh():
         expires = round(time.time() + 3600)
         nonce = secrets.token_urlsafe(16)
         access_token = jwt.encode({'client_id': username, 'exp': expires, 'nonce' : nonce}, SECRET_KEY, algorithm = 'HS256')
+
+        expires2 = round(time.time() + 43200)
+        nonce2 = secrets.token_urlsafe(16)                                 
+        new_refresh_token = jwt.encode({'client_id': username, 'exp': expires2, 'nonce': nonce2}, SECRET_KEY2, algorithm = 'HS256')
         # save token in database
         scope = {} # por agora está assim.... [EM FALTA]
         add_token(access_token, username, scope, expires, nonce)
+        delete_refresh_token(refresh_token)
         # return new access token
         return json.dumps({
             'access_token': access_token,
+            'refresh_token': new_refresh_token,
             'token_type': 'Bearer',
             'expires': expires,
         })
@@ -239,6 +245,18 @@ def delete_token(access_token):
     tokens = db['tokens']
     tokens.delete_one({'access_token': access_token})
     client.close()
+
+
+# Função que elimina um token da base de dados
+def delete_token_r(access_token):
+    client = MongoClient(host=mongodb_addr, port=mongodb_port, username=mongodb_username, password=mongodb_password)
+    db = client['openid']
+    tokens = db['tokens']
+    tokens.delete_one({'access_token': access_token})
+    tokens = db['refresh_tokens']
+    tokens.delete_one({'access_token': access_token})
+    client.close()
+
 
 # Função que elimina um refresh token da base de dados
 def delete_refresh_token(refresh_token):
