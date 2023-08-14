@@ -13,6 +13,11 @@
 
 This repository hosts the implementation of two **OAuth 2.0** services. One is built to function with the client credentials grant, while the other is configured for OpenID. The OpenID version communicates with the ETSI OSM MANO (hereafter referred to as OSM) to verify the authenticity of the login process.
 
+If you use it, please refer to:
+
+Ferreira, V., Bastos, J., Martins, A., Araújo, P., Lori, N., Faria, J., Costa, A., López, H. (2023).
+NETEDGE MEP: A CNF-based Multi-access Edge Computing Platform. 
+ISCC 2023 Proceedings.
 
 ## Installation
 
@@ -51,3 +56,4 @@ The OpenID-server, similar to OAuth-server, uses a MongoDB database to manage cl
 ## Wiki
 
 For a deeper understanding of the OAuth 2.0 framework, visit the official [OAuth website](https://oauth.net/2/). For information about OpenID, check [here](https://openid.net/).
+
