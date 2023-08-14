@@ -177,8 +177,8 @@ def logout():
     else:
         #access_token = token.split(" ")[1]
         #delete token from database
-        delete_token(token)
-        print("Token deleted from database successfully!")
+        delete_token_r(token)
+        print("Tokens deleted from database successfully!")
         return make_response("sucesso", 200)
 
 
